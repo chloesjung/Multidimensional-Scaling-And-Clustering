@@ -1,0 +1,140 @@
+---
+title: "Assignment 4C: RUNNING AND INTERPRETING MDS ANALYSES"
+author: "Jung"
+date: "February 8, 2021"
+output: html_document
+---
+
+## PART 1:
+### 1) Using isoMDS in R, run nonmetric (ordinal) MDS analyses of the data from Howe on similarity of crimes, in 1-4 dimensions.  See the posted R example file for guidance.
+ 
+```{r}
+
+# load libraries
+library(MASS)
+
+# read in the data file
+data.sim <- read.csv("CRIMES_PRX_clean.csv",header=TRUE)
+
+# store the rownames/colnames into names
+names <- data.sim[,1]
+
+# convert to matrix
+data.sim <- data.matrix(data.sim)
+
+# remove the first column and make it as a row names
+rownames(data.sim)<-names
+data.sim <- data.sim[,-1]
+
+# find maximum value 
+my_max=max(data.sim, na.rm=TRUE)
+my_max
+
+```
+```{r}
+# dissimilarity matrix
+data.dis = 190 - data.sim
+data.dis
+
+```
+```{r}
+
+# need to make the matrix symmetric
+data.dis[is.na(data.dis)] <- 0
+data.dis = (data.dis+t(data.dis))
+data.dis
+
+```
+```{r}
+
+dimstress <- matrix(numeric(8),4,2)
+
+#dimension 1
+dimstress[1,1] <-1
+dimstress[1,2] <- isoMDS(data.dis,k=1,trace=TRUE,p=2)$stress
+
+#dimension 2
+dimstress[2,1] <-2
+dimstress[2,2] <- isoMDS(data.dis,k=2,trace=TRUE,p=2)$stress
+
+#dimension 3
+dimstress[3,1] <-3
+dimstress[3,2] <- isoMDS(data.dis,k=3,trace=TRUE,p=2)$stress
+
+#dimension 4
+dimstress[4,1] <-4
+dimstress[4,2] <- isoMDS(data.dis,k=4,trace=TRUE,p=2)$stress
+
+dimstress
+```
+### 2) Prepare a plot of Stress vs. dimensionality for these four solutions. Judging from this plot, what do you think is the best dimensionality for these data? Why?
+
+#### Answer: Dimensionality = 4 seems to be the best dimensionality for the data, as it has the lowest value of sterss.
+
+
+```{R}
+
+plot(dimstress, xlab = "Dimensionality", ylab = "Stress")
+
+```
+
+### 3) Plot and label the 2-dim. configuration (regardless of your conclusions about dimensionality in part 2).  Report your (subjective) interpretation for this solution.
+
+
+```{r}
+
+data.nmds <- isoMDS(data.dis,k=2,trace=TRUE,p=2)
+data.nmds
+
+longdata <- data.nmds$points
+longdata <- as.data.frame(longdata)
+longdata$names <- rownames(data.nmds$points)
+longdata
+library(ggplot2)
+plot1 <- ggplot(longdata, aes(V1, V2, label=names)) + 
+  geom_point(colour="red", size=2) +
+  geom_text(colour="red", check_overlap = TRUE, size=2.5, 
+            hjust = "left", vjust = "bottom", nudge_x = 0.02, nudge_y = 0) + 
+  labs(x="", y="", title="MDS by isoMDS()") + theme_bw()
+plot1
+
+```
+
+## PART 2:
+### 4) As an aid to interpretation: Using the 2-dimensional configuration you obtain from isoMDS, use a statistical package (R or SPSS) to regress the attribute of SERIOUSNESS into the solution space.
+
+```{r}
+
+#drop the third column, mnames
+longdata = subset(longdata, select = -c(3) )
+longdata
+
+serious <- c(7.83,6.08,8.5,2.17,6.92,6.42,8.33,4.67,7.96,8.96,6.46,7.46,8.71,5.21,6.71,6.83,4.63,5.5)
+serious <- as.data.frame(serious)
+
+#bind "seriousness"
+df <- cbind(longdata,serious)
+df
+
+colnames(df) <- c("x1","x2","Y")
+```
+
+### Plot (by hand, or using the stat package) the regression line into a plot of the configuration space (one ignores the constant term in doing this).  
+
+```{r}
+
+#Regression
+fit<-lm(Y ~ x1 + x2, data=df)
+summary(fit)
+
+#coefficient for x1
+c1 <- fit$coefficients[2]
+
+#coefficient for x2
+c2 <- fit$coefficients[3]
+
+plot2 <- plot1 +
+   geom_segment(data=fit, mapping=aes(x=0, y=0, xend=c1, yend=c2), size=1, arrow=arrow(),color="green")
+plot2
+```
+
