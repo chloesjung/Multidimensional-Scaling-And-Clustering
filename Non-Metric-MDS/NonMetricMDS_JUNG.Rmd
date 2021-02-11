@@ -1,6 +1,6 @@
 ---
-title: "Assignment 4C: RUNNING AND INTERPRETING MDS ANALYSES"
-author: "Jung"
+title: "Non-Metric MDS"
+author: "Chloe Jung"
 date: "February 8, 2021"
 output: html_document
 ---
