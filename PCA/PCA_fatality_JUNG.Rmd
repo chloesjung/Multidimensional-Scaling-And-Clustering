@@ -1,0 +1,235 @@
+---
+title: "PCA_JUNG"
+author: "Chloe Jung"
+date: "January 21, 2021"
+output: html_document
+---
+
+#### Import Files 
+
+```{r}
+
+library(haven)
+
+fatality <- read_sav("fatality.sav")
+fatality
+
+features <- c("state", "frate", "drink", "gasuse", "drivers", "density", "temp")
+
+```
+
+Features: 
+- state: name of state
+- frate: fatalities per 100M vehicle miles driven
+- drink: min drinking age
+- gasuse: gasoline use
+- drivers: total number of drivers (M)
+- density: population density
+- temp: mean January daytime low temp
+
+"State" will be excluded 
+
+```{r}
+
+# If "state" were to be included, must be converted into numeric
+#fatality$state = as.numeric(as.factor(fatality$state))
+
+```
+
+### PCA Using "prcomp"
+
+prcomp: The calculation is done by a singular value decomposition of the (centered and possibly scaled) data matrix, not by using eigen on the covariance matrix. This is generally the preferred method for numerical accuracy.
+
+```{r}
+
+fatality.pca <- prcomp(fatality[2:7], center = TRUE, scale = TRUE)
+summary(fatality.pca)
+
+```
+- Standard Deviation = eigenvalues (since the data has been centered and scaled - standardized)
+
+- Proportion of Variance = amount of variance the component accounts for in the data
+
+- Cumulative Proportion = accumulated amount of explained variance 
+
+### Scree Plot and Cumulative Variance Plot
+
+```{r}
+
+screeplot(fatality.pca, type = "l", main = "Screeplot of the PCs")
+abline(h = 1, col="red", lty=5)
+legend("topright", legend=c("Eigenvalue = 1"),
+       col=c("red"), lty=5, cex=0.6)
+
+# Cumulative Variance Plot
+cumpro <- cumsum(fatality.pca$sdev^2 / sum(fatality.pca$sdev^2))
+plot(cumpro[], xlab = "PC #", ylab = "Amount of explained variance", main = "Cumulative variance plot")
+abline(v = 3, col="blue", lty=5)
+abline(h =  0.8390, col="blue", lty=5)
+legend("topleft", legend=c("Cut-off @ PC3"),
+       col=c("blue"), lty=5, cex=0.6)
+
+```
+
+### Explanation for Scree Plot and Cumulative Variance Plot ###
+
+An eigenvalues < 1 means that component explains less than a single explanatory variable, and therfore, PCs that have eigenvalues less than 1 can be discarded. 
+
+Including PC1, PC2, and PC3 accounts for around 83.9% of the cumulative variance, which seems to be good.
+
+### Plot PC1 and PC2 
+
+```{r}
+
+library(ggfortify)
+pca.plot <- autoplot(fatality.pca, data = fatality, color = 'state')
+pca.plot
+
+```
+
+### Dotplot
+
+```{r}
+
+# Dotplot for PC1
+load <- fatality.pca$rotation
+sorted.loadings <- load[order(load[, 1]), 1]
+sorted.loadings
+dotchart(sorted.loadings, main="Loadings Plot for PC1", xlab="Variable Loadings", cex=1, col="red")
+
+# Dotplot for PC2
+load <- fatality.pca$rotation
+sorted.loadings <- load[order(load[, 2]), 2]
+sorted.loadings
+dotchart(sorted.loadings, main="Loadings Plot for PC2", xlab="Variable Loadings", cex=1, col="red")
+```
+
+For PC1, drivers and gasuse, as well as density and temperature, seem to have a strong loadings
+For PC2, dominant variables are frate, temp, drink, gasuse and drivers.
+
+
+### Biplot
+
+```{r}
+
+biplot(fatality.pca, cex=c(0.5, 0.7))
+
+```
+
+
+#### Varimax
+- change of coordinates that maximizes the sum of variances of the squared loadings
+- goal to clean up the rotation
+
+```{r}
+
+fatality.var = varimax(fatality.pca$rotation)
+fatality.var
+
+````
+
+## Alternative Method
+
+
+### PCA Using "princomp" on Correlation Matrix 
+
+### Convert to correlation matrix
+
+```{r}
+
+# Correlation matrix
+fatality.cor = cor(fatality[2:7])
+fatality.cor = as.matrix(fatality.cor)
+fatality.cor
+
+```
+
+The correlation matrix suggest that there is a strong, positive correlation between the gasoline usage (gasuse) and total number of drivers (drivers), which seems to be intuitive. There is a moderate negative correlation between the fatalities rate (frate) and population density (density), and also
+
+
+### PCA and Scree Plot
+```{r}
+
+# PCA 
+fatality.pca2 <- princomp(fatality[2:7], cor = TRUE, scores = TRUE, covmat = fatality.cor)
+print(fatality.pca2)    ## prints out eigenvalues
+
+# Scree Plot
+plot(fatality.pca2,type='l')   ## scree plot
+abline(h = 1, col="red", lty=5)
+legend("topright", legend=c("Eigenvalue = 1"),
+       col=c("red"), lty=5, cex=0.6)
+
+```
+The scree plot seems to suggest the same result as seen when used "prcomp," which is expected. 
+
+### Plot PC1 and PC2
+
+```{r}
+
+# Plot of first two components
+P12<-fatality.pca2$loadings[,1:2]  ## prepare to plot the first two components, with full variable names
+plot(P12,pch=' ')  # plot components with blanks at first
+text(P12, rownames(fatality.cor), cex=0.8)  # then add full subtest names
+
+```
+
+### Eigendecomposition
+
+- use "eigen" directly, and define the principal components in terms of the eigendecomposition
+
+- accomplish a PCA via the eigendecomposition routines in R function eigen returns eigenvalues (in $values) and eigenvectors (in $vectors)
+
+```{r}
+
+fatality.eigen<-eigen(fatality.cor,symmetric=TRUE)
+fatality.eigen
+
+fatality.eigen$values
+fatality.eigen$vectors
+
+```
+
+# Compuing Principal Components from Eigenvectors & Eigenvalues
+
+```{r}
+# prepare to compute principal components from eigenvectors & eigenvalues
+
+# 1. create 2x2 diagonal identity matrix
+I2<-matrix(c(1,0,0,1),nrow=2,byrow=TRUE)
+
+# 2. plug sqrt(eigenvalues) into diagonal of identity matrix to create weighting matrix "wgt"
+wgt<-I2
+for (i in 1:2) {wgt[i,i]<-(fatality.eigen$values[i])^.5}
+print(wgt)
+
+# 3. weight the first two eigenvectors to obtain (the first 2) principal components
+P2<-fatality.eigen$vectors[,1:2] %*% wgt
+
+# 4. plot the first two principal components
+rownames(P2)<-rownames(fatality.cor)
+plot(P2,pch=' ')
+text(P2,rownames(P2),cex=0.8)  # add full variable names
+
+```
+### Varimax
+
+```{r}
+
+# most common method for orthogonal analytic rotation: VARIMAX
+vmax<-varimax(P2,normalize=TRUE,eps=1e-5)
+P2_vmax<-vmax$loadings
+P2_vmax
+plot(P2_vmax,pch=' ',asp=1,)
+abline(h = 0, v = 0)
+text(P2_vmax,rownames(P2),asp=1, cex=0.5)  # add full variable names
+
+```
+
+### Interpretation from the analysis above ##
+
+fatality rate (frate) and population density (density) seem to have contrasting relationship, while the gas use (gasuse) and number of drivers (driver) seem to have a close relationship.
+
+drinking age (drink) and mean temperature in January for the state (temp) seem to be highly related to the fatality rate.
+
+States 30, 39, 21, 7 seem to have contrasting relationship with states 31, 28, 24.
