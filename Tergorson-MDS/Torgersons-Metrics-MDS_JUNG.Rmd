@@ -1,0 +1,186 @@
+---
+title: "Torgersons-Metric-MDS-Algorithm"
+author: "Chloe Jung"
+date: "January 30, 2021"
+output: html_document
+---
+# TORGERSON'S METRIC MDS ALGORITHM
+
+## PART A -- Transform the similarity data to obtain "pseudodistances".
+
+The following matrix show the confusion probabilities among pairs of five Morse code signals (for E,H,N,S,W) obtained by Rothkopf (1957).
+
+
+	E	H	N	S	W
+E	97	04	04	07	02
+H	09	87	08	37	09
+N	08	16	93	12	12
+S	11	59	17	96	12
+W	09	15	26	12	86
+
+
+```{r}
+
+# Create the confusion probabilities matrix
+
+A = matrix(
+  c(97,9,8,11,9,4,87,16,59,15,4,8,93,17,26,7,37,12,96,12,2,9,12,12,86),
+  nrow=5,
+  ncol=5
+)
+rownames(A) <- c("E","H","N","S","W")
+colnames(A) <- c("E","H","N","S","W")
+A
+
+```
+
+Starting with these probabilities, transform the confusions into dissimilarities that satisfy the axioms of a metric space (="pseudodistances").  This process involves the following steps 1-4:
+
+### 1. symmetrize the matrix (by averaging the corresponding entries in the upper & lower halves of the matrix), and write it out as a lowerhalf matrix.
+
+```{r}
+
+# Average the upper and lower halves and put it in the lowerhalf matrix
+A1lo <- A[lower.tri(A)]
+A1up <- t(A)[lower.tri(t(A))] 
+A1sym <- A
+A1sym[lower.tri(A1sym)] <- (A1up+A1lo)/2
+
+
+symm <- function(sm) {
+sm[upper.tri(sm)]<-t(sm)[upper.tri(sm)]
+return(sm)}
+symm(A1sym)
+A1sym <- symm(A1sym)
+A1sym
+
+```
+
+
+### 2. transform the similarities into dissimilarities (by subtracting each entry from the largest similarity).
+
+```{r}
+
+# The largest similariy in A1 = 48
+# A2 = Dissimilarity Matrix 
+
+B = matrix(48,5,5)
+A2 <- B - A1sym
+A2
+
+```
+
+### 3. for every triple of objects, check if the triangle inequality is satisfied (theoretically, it must be satisfied for all possible permutations of the three points: d(x,y)+d(y,z)  d(x,z), d(x,z) + d(z,y)  d(x,y), d(y,x)+d(x,z)d(y,z), but a little thought can save you a lot of checking here).  If the TI is not satisfied, then find the largest violation, C = d(x,z) - (d(x,y)+d(y,z)), and add this constant C to each of the dissimilarities.  Verify that the TI is now EXACTLY satisfied for the triple that gave you the largest violation.
+
+```{r}
+# m = size of matrix (# of stimuli).
+m<-5; mina<-0  # note you can put two R statements on one line - separate them with semicolon
+for (k in 3:m)
+{ for (j in 2:(k-1)) 
+  { for (i in 1:(j-1)) 
+      { i;j;k
+        a1<-A2[i,j]+A2[j,k]-A2[i,k]
+        a2<-A2[j,k]+A2[i,k]-A2[i,j] 
+        a3<-A2[i,j]+A2[i,k]-A2[j,k]
+        a <- min(a1,a2,a3)  
+        if (a<0) mina<-min(a,mina) }}}
+# if minc<0, then the TI is violated, by abs(c)
+A3<-matrix(numeric(25),5,5)  # creates a matrix of size 4 x 4 (with entries = 0)
+A3<-A3+abs(mina)   # (matrix + scalar) adds the scalar quantity elementwise to the matrix
+A3
+
+```
+
+### 4. write out the resulting matrix as a full matrix (putting 0's in the diagonal).  These numbers nowsatisfy the metric axioms; i.e., they are "pseudodistances".
+
+```{r}
+
+A4<-A3+A2
+for (i in 1:m) A4[i,i]=0   # put 0s on diagonal of matrix "A4"
+# A4 now contains "pseudo-distances", i.e. proximities transformed to satisfy the metric axioms
+A4
+
+```
+
+## PART B. transform the "pseudodistances" into "pseudo scalar products" (as follows) 
+
+### 5. square each entry in this matrix to get dij2.
+
+```{r}
+
+A4Sq<-A4^2
+A4Sq
+
+```
+
+### 6. "double-center" this symmetric matrix using the formula: (include the diagonal entries).  The resulting matrix may be thought of as "pseudo scalar products".
+
+D
+```{r}
+
+# now compute the row / col means and the grand mean
+aveDsq<-c(1:5)
+for (i in 1:m) aveDsq[i]<-mean(A4Sq[i,])
+aveDsq
+grmean<-mean(aveDsq[])
+grmean
+
+# now we can define matrix A6, the quasi-scalar products matrix
+A6<-matrix(numeric(25),5,5)
+for (i in 1:m)
+{ for (j in 1:m) 
+  { A6[i,j] <- -0.5*(A4Sq[i,j]-aveDsq[i]-aveDsq[j]+grmean)
+   }}
+A6
+
+
+```
+
+## PART C.  Factor the pseudo-scalar products using PCA.  
+
+### 7. Run a principal components analysis (PCA) of this matrix, treating it as covariances, and requesting no rotation of the factor solution.  Do a "scree plot" of the size of each eigenvalue for thefive components.  How many dimensions appear to approximately characterize the data?
+
+```{r}
+
+Acomp<-eigen(A6)
+Acomp
+
+#define principal components (use first two only)
+wts<-matrix(numeric(4),2,2)
+for (i in 1:2) wts[i,i]<-sqrt(Acomp$values[i])  
+wts
+
+evec<-Acomp$vectors[,1:2]
+evec
+
+P<-evec%*%wts
+P
+
+
+```
+
+### 8. Plot the five points in a 2-dimensional space using the "component loadings" for the first two dimensions (label each point appropriately).  In a sentence or two, compare your configuration to that obtained by Shepard (and reported in Kruskal & Wish).
+
+```{r}
+
+
+# plot the final 2-dim configuration
+plot(P,pch="")
+points<-c("E","H","N","S","W")  # prepare to label points
+text(P,points)
+
+A6comp <- princomp( A6, cor=F, scores=T)
+print(A6comp)
+plot(A6comp, type='l')
+
+# plot the final 2-dim configuration
+A8 <-A6comp$loadings[,1:2]
+plot(A8 ,pch="")
+points<-c("E","H","N","S","W")  # prepare to label points
+text(A8,points)
+
+```
+
+#### Component1: Loads high on N and W.
+#### Component2: Loads high on H and S.
+
