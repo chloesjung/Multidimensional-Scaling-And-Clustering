@@ -1,0 +1,109 @@
+---
+title: "smacof"
+author: "Chloe Jung"
+date: "2/11/2021"
+output: html_document
+---
+## MDS of the new nations data using smacof
+
+As part of a classroom demo in a previous semester, we collected similarity ratings of 12 nations, a semi-replication of Wish's nations data collected in the 1970's. It is not a perfect replication, because at least one of the countries Wish used as stimuli (Yugoslavia) no longer exists. The file "nations_ALLDATA_1920_lowerhalf.csv" contains the averaged similarity ratings from two years sections of this course, as a lowerhalf matrix.
+
+#### 1) read the new nations data into R, and convert it to type matrix (using the first column as the rownames)
+
+```{r}
+
+# load packages
+library(readr)
+library(tidyverse)
+library(smacof)
+library(ggplot2)
+
+# import the file
+nnations <-read_csv("nations_ALLDATA_1920_lowerhalf.csv")
+
+# convert to matrix
+nnations<- nnations %>% remove_rownames %>% column_to_rownames(var="X1")
+nn <- as.matrix(nnations)
+
+# dissmilarity matrix
+Dx <- sim2diss(nn,method=8) #since the max value in nn is 7, chose to subtract from 8
+
+```
+
+#### 2) Next, we will try using the smacof routine on the matrix Dx:
+##### Run solutions in 1-5 dimensions, and choose what you consider to be the best dimensionality. Use both a “scree” plot and interpretability as your criteria for deciding on dimensionality. Write interpretations for the dimensions of your chosen solution.
+
+```{r}
+
+# stress for each dimension 1-5
+stress_values<- matrix(numeric(10),5,2)
+for(ii in 1:5){
+            stress_values[ii,1] <-ii
+            nn_sm <- smacofSym(Dx, ndim = ii,
+                                        type =   "ordinal")
+            stress_values[ii,2] <- nn_sm$stress
+}
+stress_values <- as.data.frame(stress_values)
+colnames(stress_values) <- c("dimension","stress")
+
+# scree plot
+screeplot <-ggplot(stress_values) +
+  aes(x = dimension, y = stress) +
+  geom_point() +
+  geom_line() +
+  theme_classic()
+screeplot
+
+```
+
+Stress is monotonically decreasing with increasing dimensionality.The elbow of the scree plot seems to be around 3 (a point where stress decreases only marginally with increasing dimensionality). However, considering the interpretability, I have chosen 2 as the dimension.
+
+```{r}
+
+# ndim=2
+nn_sm2<-smacofSym(Dx,ndim=2, type="ordinal")
+nn_sm2
+
+# plot the 2-D solution and label the points plot
+plot(nn_sm2$conf,asp=1,pch=' ') 
+text(nn_sm2$conf,rownames(nn))
+
+```
+
+#### 3) Perform 10 runs of smacof (ordinal MDS) on the new nations data with a RANDOM start, using the init="random" parameter. Do this with 1-dimensional and 2-dimensional solutions. Do you see any evidence of a local minimum problem in any of the runs?
+
+```{r}
+
+# 1-dimensional solutions
+fitstress<- matrix(numeric(30),10,3)
+fit1 <- list()
+for(i in 1:10){
+            fit1[[i]] <- smacofSym(Dx, ndim = 1, type ="ordinal", init="random")
+            fitstress[i,1] <-i
+            fitstress[i,2] <- fit1[[i]]$stress}
+
+# 2-dimensional solutions
+fit2 <- list()
+for(i in 1:10){
+            fit2[[i]] <- smacofSym(Dx, ndim = 2, type ="ordinal", init="random")
+            fitstress[i,3]<- fit2[[i]]$stress}
+
+fitstress <- as.data.frame(fitstress)
+colnames(fitstress) <- c("iteration","dimension1","dimension2")
+fitstress
+
+# 10 iterations plot for dimension 1
+iterationplot1 <-ggplot(fitstress) +
+  aes(x = iteration, y = dimension1) +
+  geom_point() +
+  geom_line() +
+  theme_classic()
+iterationplot1
+
+# 10 iterations plot for dimension 2
+iterationplot2 <-ggplot(fitstress) +
+  aes(x = iteration, y = dimension2) +
+  geom_point() +
+  geom_line() +
+  theme_classic()
+iterationplot2
